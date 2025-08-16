@@ -4,42 +4,88 @@
     <meta charset="UTF-8">
     <title>Chat App</title>
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+
 </head>
 <body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-6">
 
 <h1 class="text-3xl font-bold mb-6">Chat Application</h1>
 
-<!-- Chat Box -->
-<div id="chat-box" class="w-full max-w-2xl h-96 bg-white shadow rounded overflow-y-auto p-4 border border-gray-200">
-    <!-- Future messages will be appended here -->
-    <p class="text-gray-500 italic">No messages yet...</p>
+<div id="chat" class="w-full max-w-2xl h-96 bg-white shadow rounded overflow-y-auto p-4 border border-gray-200">
 </div>
 
 <!-- Chat Form -->
-<form th:action="@{/send}" method="post" class="w-full max-w-2xl mt-4 bg-white p-4 shadow rounded space-y-4 border border-gray-200">
+<form onsubmit="event.preventDefault(); sendMessage();"
+      class="w-full max-w-2xl mt-4 bg-white p-4 shadow rounded space-y-4 border border-gray-200">
 
     <!-- Name field -->
     <div>
         <label for="name" class="block text-sm font-medium text-gray-700">Name</label>
         <input type="text" id="name" name="name"
-               class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500" required>
+               class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+               required>
     </div>
 
     <!-- Message field -->
     <div>
         <label for="message" class="block text-sm font-medium text-gray-700">Message</label>
         <textarea id="message" name="message" rows="3"
-                  class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500" required></textarea>
+                  class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+                  required></textarea>
     </div>
 
     <!-- Submit button -->
     <div class="flex justify-end">
-        <button type="submit"
+        <button id="sendButton" type="submit"
                 class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded shadow">
             Send
         </button>
     </div>
 </form>
+
+<script>
+    let stompClient = null;
+
+    function setConnected(connected) {
+        document.getElementById('sendButton').disabled = !connected;
+    }
+
+    function connect() {
+        const socket = new SockJS('/chat');
+        stompClient = Stomp.over(socket);
+
+        stompClient.connect({}, function (frame) {
+            setConnected(true);
+            stompClient.subscribe("/topic/messages", function (message) {
+                showMessage(JSON.parse(message.body));
+            });
+        });
+    }
+
+    function showMessage(message) {
+        const chat = document.getElementById('chat');
+        const messageElement = document.createElement('div');
+        messageElement.className = 'text-gray-800';
+        messageElement.textContent = `${message.sender}: ${message.content}`;
+        chat.appendChild(messageElement);
+        chat.scrollTop = chat.scrollHeight; // scroll to bottom
+    }
+
+    function sendMessage() {
+        const name = document.getElementById('name').value;
+        const content = document.getElementById('message').value;
+
+        if (name && content && stompClient) {
+            stompClient.send("/app/sendMessage", {}, JSON.stringify({ sender: name, content: content }));
+            document.getElementById('message').value = ''; // clear
+        }
+    }
+
+    // auto-connect on page load
+    window.onload = connect;
+</script>
 
 </body>
 </html>
